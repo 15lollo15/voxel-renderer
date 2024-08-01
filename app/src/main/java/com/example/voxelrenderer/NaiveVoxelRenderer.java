@@ -46,6 +46,7 @@ import javax.microedition.khronos.opengles.GL10;
 
 public class NaiveVoxelRenderer extends BasicRenderer {
     private PlyObject cubePlyObject;
+    private VlyObject modelVlyObject;
 
     private int shaderHandle;
     private int[] VAO;
@@ -89,7 +90,7 @@ public class NaiveVoxelRenderer extends BasicRenderer {
 
         Matrix.perspectiveM(projM, 0, 45f, aspect, 0.1f, 100f);
 
-        Matrix.setLookAtM(viewM, 0, 0, 2f, 5f,
+        Matrix.setLookAtM(viewM, 0, 0, 0f, 60f,
                 0, 0, 0,
                 0, 1, 0);
 
@@ -101,24 +102,14 @@ public class NaiveVoxelRenderer extends BasicRenderer {
 
         loadShaders();
         loadCube();
+        loadVoxelModel();
 
-        // TODO: Load vly
 
-        try {
-            InputStream is = context.getAssets().open("models/pcube.ply");
-            cubePlyObject = new PlyObject(is);
-            cubePlyObject.parse();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
 
         float[] vertices = cubePlyObject.getVertices();
         int[] indices = cubePlyObject.getIndices();
 
-        float[] offsets = new float[] {
-                0, 0, 0,
-                0, 1, 0
-        };
+        float[] offsets = generateOffsets();
 
 
         FloatBuffer vertexData = allocateFloatBuffer(vertices);
@@ -165,11 +156,39 @@ public class NaiveVoxelRenderer extends BasicRenderer {
 
     }
 
+    private float[] generateOffsets() {
+        float[] offsets = new float[3 * modelVlyObject.getVoxelNum()];
+        int[][] positions = modelVlyObject.getVoxelsPositionColorIndex();
+
+        float marginX = (modelVlyObject.getX() - 1) * 0.5f;
+        float marginY = (modelVlyObject.getY() - 1) * 0.5f;
+        float marginZ = (modelVlyObject.getZ() - 1) * 0.5f;
+
+        for (int i = 0; i < modelVlyObject.getVoxelNum(); i++) {
+            int[] position = positions[i];
+            offsets[i * 3] = position[0] - marginX;
+            offsets[i * 3 + 1] = position[2] - marginY;
+            offsets[i * 3 + 2] = position[1] - marginZ;
+        }
+
+        return offsets;
+    }
+
     private void loadCube() {
         try {
             InputStream is = context.getAssets().open("models/pcube.ply");
             cubePlyObject = new PlyObject(is);
             cubePlyObject.parse();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void loadVoxelModel() {
+        try {
+            InputStream is = context.getAssets().open("models/chrk.vly");
+            modelVlyObject = new VlyObject(is);
+            modelVlyObject.parse();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -225,7 +244,7 @@ public class NaiveVoxelRenderer extends BasicRenderer {
         glUseProgram(shaderHandle);
             glBindVertexArray(VAO[0]);
                 glUniformMatrix4fv(MVPloc, 1, false, MVP, 0);
-                glDrawElementsInstanced(drawMode, countFacesToElement, GL_UNSIGNED_INT, 0, 2);
+                glDrawElementsInstanced(drawMode, countFacesToElement, GL_UNSIGNED_INT, 0, modelVlyObject.getVoxelNum());
                 //glDrawElements(drawMode, countFacesToElement, GL_UNSIGNED_INT, 0);
                 //glDrawArrays(drawMode, 0, 3);
             glBindVertexArray(0);
