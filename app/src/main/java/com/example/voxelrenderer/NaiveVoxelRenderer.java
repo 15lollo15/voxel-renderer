@@ -1,6 +1,9 @@
 package com.example.voxelrenderer;
 
+import android.annotation.SuppressLint;
 import android.opengl.Matrix;
+import android.view.MotionEvent;
+import android.view.View;
 
 import static android.opengl.GLES20.GL_ARRAY_BUFFER;
 import static android.opengl.GLES20.GL_BACK;
@@ -47,6 +50,7 @@ import javax.microedition.khronos.opengles.GL10;
 public class NaiveVoxelRenderer extends BasicRenderer {
     private PlyObject cubePlyObject;
     private VlyObject modelVlyObject;
+    private float angle;
 
     private int shaderHandle;
     private int[] VAO;
@@ -80,7 +84,7 @@ public class NaiveVoxelRenderer extends BasicRenderer {
         Matrix.setIdentityM(projM, 0);
         Matrix.setIdentityM(MVP, 0);
 
-
+        angle = 0f;
     }
 
 
@@ -88,14 +92,17 @@ public class NaiveVoxelRenderer extends BasicRenderer {
         super.onSurfaceChanged(gl10, w, h);
         float aspect = ((float) w) / ((float) (h == 0 ? 1 : h));
 
-        Matrix.perspectiveM(projM, 0, 45f, aspect, 0.1f, 100f);
+        Matrix.perspectiveM(projM, 0, 45f, aspect, 0.1f, 1000f);
 
-        Matrix.setLookAtM(viewM, 0, 0, 0f, 60f,
+
+        float ratio = Math.max(h, (float)w) / Math.min(h, (float)w);
+        int maxSize = Math.max(Math.max(modelVlyObject.getX(), modelVlyObject.getY()), modelVlyObject.getZ());
+        Matrix.setLookAtM(viewM, 0, 0, 0f, maxSize * ratio * 1.5f,
                 0, 0, 0,
                 0, 1, 0);
-
     }
 
+    @SuppressLint("ClickableViewAccessibility")
     @Override
     public void onSurfaceCreated(GL10 gl10, EGLConfig eglConfig) {
         super.onSurfaceCreated(gl10, eglConfig);
@@ -104,17 +111,16 @@ public class NaiveVoxelRenderer extends BasicRenderer {
         loadCube();
         loadVoxelModel();
 
-
-
         float[] vertices = cubePlyObject.getVertices();
         int[] indices = cubePlyObject.getIndices();
-
         float[] offsets = generateOffsets();
+        float[] colors = generateColors();
 
 
         FloatBuffer vertexData = allocateFloatBuffer(vertices);
         IntBuffer indexData = allocateIntBuffer(indices);
         FloatBuffer offsetsData = allocateFloatBuffer(offsets);
+        FloatBuffer colorsData = allocateFloatBuffer(colors);
 
         countFacesToElement = indices.length;
 
@@ -122,8 +128,8 @@ public class NaiveVoxelRenderer extends BasicRenderer {
         VAO = new int[1];
         glGenVertexArrays(1, VAO, 0);
 
-        int[] VBO = new int[3];
-        glGenBuffers(3, VBO, 0);
+        int[] VBO = new int[4];
+        glGenBuffers(4, VBO, 0);
 
         glBindVertexArray(VAO[0]);
             glBindBuffer(GL_ARRAY_BUFFER, VBO[0]);
@@ -139,6 +145,13 @@ public class NaiveVoxelRenderer extends BasicRenderer {
                 glVertexAttribDivisor(2, 1);
             glBindBuffer(GL_ARRAY_BUFFER, 0);
 
+            glBindBuffer(GL_ARRAY_BUFFER, VBO[3]);
+                glBufferData(GL_ARRAY_BUFFER, Float.BYTES * colorsData.capacity(), colorsData, GL_STATIC_DRAW);
+                glVertexAttribPointer(3, 3, GL_FLOAT, false, Float.BYTES * 3, 0);
+                glEnableVertexAttribArray(3);
+                glVertexAttribDivisor(3, 1);
+            glBindBuffer(GL_ARRAY_BUFFER, 0);
+
             glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, VBO[1]);
                 glBufferData(GL_ELEMENT_ARRAY_BUFFER, Integer.BYTES * indexData.capacity(), indexData, GL_STATIC_DRAW);
 
@@ -147,13 +160,44 @@ public class NaiveVoxelRenderer extends BasicRenderer {
 
         MVPloc = glGetUniformLocation(shaderHandle, "MVP");
 
-        glEnable(GL_DEPTH_TEST);
-        glDepthFunc(GL_LEQUAL);
+
 
         glEnable(GL_CULL_FACE);
         glCullFace(GL_BACK);
         glFrontFace(GL_CCW);
 
+        glEnable(GL_DEPTH_TEST);
+        glDepthFunc(GL_LEQUAL);
+
+
+        this.getSurface().setOnTouchListener(new View.OnTouchListener() {
+            @SuppressLint("ClickableViewAccessibility")
+            @Override
+            public boolean onTouch(View view, MotionEvent motionEvent) {
+                angle += 10f;
+                return false;
+            }
+        });
+
+
+    }
+
+    private float[] generateColors() {
+        float[] colors = new float[3 * modelVlyObject.getVoxelNum()];
+        int[][] positions = modelVlyObject.getVoxelsPositionColorIndex();
+
+        for (int i = 0; i < modelVlyObject.getVoxelNum(); i++) {
+            int[] position = positions[i];
+            int colorIndex = position[3];
+            int[] color = modelVlyObject.getColors().get(colorIndex);
+            if (color == null)
+                color = new int[] {255, 255, 255};
+            colors[i*3] = color[0] / 255f;
+            colors[i*3 + 1] = color[1] / 255f;
+            colors[i*3 + 2] = color[2] / 255f;
+        }
+
+        return colors;
     }
 
     private float[] generateOffsets() {
@@ -164,11 +208,12 @@ public class NaiveVoxelRenderer extends BasicRenderer {
         float marginY = (modelVlyObject.getY() - 1) * 0.5f;
         float marginZ = (modelVlyObject.getZ() - 1) * 0.5f;
 
+
         for (int i = 0; i < modelVlyObject.getVoxelNum(); i++) {
             int[] position = positions[i];
-            offsets[i * 3] = position[0] - marginX;
-            offsets[i * 3 + 1] = position[2] - marginY;
-            offsets[i * 3 + 2] = position[1] - marginZ;
+            offsets[i * 3] = -(position[0] - marginX) * 1f;
+            offsets[i * 3 + 1] = (position[2] - marginY) * 1f;
+            offsets[i * 3 + 2] = -(position[1] - marginZ) * 1f;
         }
 
         return offsets;
@@ -186,7 +231,7 @@ public class NaiveVoxelRenderer extends BasicRenderer {
 
     private void loadVoxelModel() {
         try {
-            InputStream is = context.getAssets().open("models/chrk.vly");
+            InputStream is = context.getAssets().open("models/monu16.vly");
             modelVlyObject = new VlyObject(is);
             modelVlyObject.parse();
         } catch (IOException e) {
@@ -237,7 +282,7 @@ public class NaiveVoxelRenderer extends BasicRenderer {
 
         Matrix.setIdentityM(modelM,0);
         Matrix.translateM(modelM,0,0,0,0);
-        Matrix.rotateM(modelM,0,0,1,0,0);
+        Matrix.rotateM(modelM,0,angle,0,1,0);
         Matrix.multiplyMM(MVP, 0, temp, 0, modelM, 0);
 
 
