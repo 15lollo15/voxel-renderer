@@ -12,13 +12,22 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
 import android.opengl.GLSurfaceView;
+import android.util.Log;
 import android.view.Window;
 import android.view.WindowManager;
 
 import java.io.IOException;
 import java.io.InputStream;
 
+import javax.microedition.khronos.egl.EGL10;
+import javax.microedition.khronos.egl.EGLConfig;
+import javax.microedition.khronos.egl.EGLContext;
+import javax.microedition.khronos.egl.EGLDisplay;
+
+
+
 public class ModelViewerActivity extends AppCompatActivity {
+    public static final int DESIRED_DEPTH_SIZE = 24;
 
     private GLSurfaceView surface;
     private boolean isSurfaceCreated;
@@ -52,6 +61,12 @@ public class ModelViewerActivity extends AppCompatActivity {
         surface = new GLSurfaceView(this);
         surface.setEGLContextClientVersion(supported);
         surface.setPreserveEGLContextOnPause(true);
+        surface.setEGLConfigChooser(new GLSurfaceView.EGLConfigChooser() {
+            @Override
+            public EGLConfig chooseConfig(EGL10 egl10, EGLDisplay eglDisplay) {
+                return getConfig(DESIRED_DEPTH_SIZE);
+            }
+        });
 
         NaiveVoxelRenderer renderer = new NaiveVoxelRenderer();
 
@@ -62,6 +77,39 @@ public class ModelViewerActivity extends AppCompatActivity {
 
 
 
+    }
+
+    private EGLConfig getConfig(int desiredDepthSize) {
+        //Riferimento al contesto EGL
+        EGL10 egl = (EGL10) EGLContext.getEGL();
+        EGLDisplay display = egl.eglGetDisplay(EGL10.EGL_DEFAULT_DISPLAY);
+        egl.eglInitialize(display, null);
+
+        //ottenimento di numConfigs[0] configurazioni supportate.
+        int[] numConfigs = new int[1];
+        egl.eglChooseConfig(display, null, null, 0, numConfigs);
+        EGLConfig[] configs = new EGLConfig[numConfigs[0]];
+        egl.eglChooseConfig(display, null, configs, numConfigs[0], numConfigs);
+
+        Log.v("EGLCONFIG", "configs " + numConfigs[0]);
+
+        //per ogni configurazione supportata
+        for (EGLConfig cfg : configs) {
+            int[] depthv = new int[1];
+            //estraiamo il numero di bit usati per rappresentare la profondita
+            egl.eglGetConfigAttrib(display, cfg, EGL10.EGL_DEPTH_SIZE, depthv);
+            Log.v("EGLCONFIG", "EGL_DEPTH_SIZE: " + depthv[0]);
+
+            /*se depthv[0] contiene un valore in bit maggiore o uguale di quello desiderato
+            possiamo restituire cfg ed impostare quella configurazione nella GLSurfaceView */
+            if (depthv[0] >= desiredDepthSize) {
+                return cfg;
+            }
+        }
+
+        // Nessuna configurazione soddisfa i requisiti
+        Log.w("EGLCONFIG", "No config satisfies DESIRED_DEPTH_SIZE");
+        return configs[0];
     }
 
     @Override
