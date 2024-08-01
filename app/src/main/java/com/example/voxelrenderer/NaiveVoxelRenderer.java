@@ -91,13 +91,19 @@ public class NaiveVoxelRenderer extends BasicRenderer {
     public void onSurfaceChanged(GL10 gl10, int w, int h) {
         super.onSurfaceChanged(gl10, w, h);
         float aspect = ((float) w) / ((float) (h == 0 ? 1 : h));
+        float fovY = 45f;
+        float fovX = 2 * (float) Math.atan(aspect * Math.tan(Math.toRadians(fovY) / 2));
 
-        Matrix.perspectiveM(projM, 0, 45f, aspect, 0.1f, 1000f);
+        Matrix.perspectiveM(projM, 0, fovY, aspect, 0.1f, 1000f);
 
+        float maxSize = Math.max(Math.max(modelVlyObject.getX(), modelVlyObject.getY()), modelVlyObject.getZ());
+        maxSize *= (float)Math.sqrt(2);
 
-        float ratio = Math.max(h, (float)w) / Math.min(h, (float)w);
-        int maxSize = Math.max(Math.max(modelVlyObject.getX(), modelVlyObject.getY()), modelVlyObject.getZ());
-        Matrix.setLookAtM(viewM, 0, 0, 0f, maxSize * ratio * 1.5f,
+        float cameraDistanceY = (maxSize / 2) / (float) Math.tan(Math.toRadians(45f) / 2);
+        float cameraDistanceX = (maxSize / 2) / (float) Math.tan(fovX / 2);
+        float cameraDistance = Math.max(cameraDistanceY, cameraDistanceX);
+
+        Matrix.setLookAtM(viewM, 0, 0, 0f, cameraDistance,
                 0, 0, 0,
                 0, 1, 0);
     }
@@ -231,7 +237,7 @@ public class NaiveVoxelRenderer extends BasicRenderer {
 
     private void loadVoxelModel() {
         try {
-            InputStream is = context.getAssets().open("models/monu16.vly");
+            InputStream is = context.getAssets().open("models/dragon.vly");
             modelVlyObject = new VlyObject(is);
             modelVlyObject.parse();
         } catch (IOException e) {
