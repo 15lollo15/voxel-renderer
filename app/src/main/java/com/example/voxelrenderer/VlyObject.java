@@ -72,8 +72,8 @@ public class VlyObject {
         String value = gridSizeString.split(":")[1].trim();
         int[] sizes = Arrays.stream(value.split(" ")).mapToInt(Integer::valueOf).toArray();
         x = sizes[0];
-        y = sizes[1];
-        z = sizes[2];
+        y = sizes[2];
+        z = sizes[1];
     }
 
 
