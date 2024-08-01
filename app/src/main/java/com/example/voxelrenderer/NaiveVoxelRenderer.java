@@ -12,7 +12,6 @@ import static android.opengl.GLES20.GL_DEPTH_TEST;
 import static android.opengl.GLES20.GL_ELEMENT_ARRAY_BUFFER;
 import static android.opengl.GLES20.GL_FLOAT;
 import static android.opengl.GLES20.GL_LEQUAL;
-import static android.opengl.GLES20.GL_LINES;
 import static android.opengl.GLES20.GL_STATIC_DRAW;
 import static android.opengl.GLES20.GL_TRIANGLES;
 import static android.opengl.GLES20.GL_UNSIGNED_INT;
@@ -21,7 +20,6 @@ import static android.opengl.GLES20.glBufferData;
 import static android.opengl.GLES20.glClear;
 import static android.opengl.GLES20.glCullFace;
 import static android.opengl.GLES20.glDepthFunc;
-import static android.opengl.GLES20.glDrawArrays;
 import static android.opengl.GLES20.glDrawElements;
 import static android.opengl.GLES20.glEnable;
 import static android.opengl.GLES20.glEnableVertexAttribArray;
@@ -32,7 +30,9 @@ import static android.opengl.GLES20.glUniformMatrix4fv;
 import static android.opengl.GLES20.glUseProgram;
 import static android.opengl.GLES20.glVertexAttribPointer;
 import static android.opengl.GLES30.glBindVertexArray;
+import static android.opengl.GLES30.glDrawElementsInstanced;
 import static android.opengl.GLES30.glGenVertexArrays;
+import static android.opengl.GLES30.glVertexAttribDivisor;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -40,9 +40,6 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
-import java.util.ArrayList;
-import java.util.LinkedList;
-import java.util.List;
 
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
@@ -102,29 +99,13 @@ public class NaiveVoxelRenderer extends BasicRenderer {
     public void onSurfaceCreated(GL10 gl10, EGLConfig eglConfig) {
         super.onSurfaceCreated(gl10, eglConfig);
 
-        String vertexSrc = "#version 300 es\n" +
-                "\n" +
-                "layout(location = 1) in vec3 vPos;\n" +
-                "uniform mat4 MVP;\n" +
-                "\n" +
-                "void main(){\n" +
-                "gl_Position = MVP * vec4(vPos,1);\n" +
-                "}";
+        loadShaders();
+        loadCube();
 
-        String fragmentSrc = "#version 300 es\n" +
-                "\n" +
-                "precision mediump float;\n" +
-                "\n" +
-                "out vec4 fragColor;\n" +
-                "\n" +
-                "void main() {\n" +
-                "fragColor = vec4(1, 0, 0, 1);\n" +
-                "}";
-
-        shaderHandle = ShaderCompiler.createProgram(vertexSrc, fragmentSrc);
+        // TODO: Load vly
 
         try {
-            InputStream is = context.getAssets().open("pcube.ply");
+            InputStream is = context.getAssets().open("models/pcube.ply");
             cubePlyObject = new PlyObject(is);
             cubePlyObject.parse();
         } catch (IOException e) {
@@ -134,10 +115,15 @@ public class NaiveVoxelRenderer extends BasicRenderer {
         float[] vertices = cubePlyObject.getVertices();
         int[] indices = cubePlyObject.getIndices();
 
+        float[] offsets = new float[] {
+                0, 0, 0,
+                0, 1, 0
+        };
 
 
         FloatBuffer vertexData = allocateFloatBuffer(vertices);
         IntBuffer indexData = allocateIntBuffer(indices);
+        FloatBuffer offsetsData = allocateFloatBuffer(offsets);
 
         countFacesToElement = indices.length;
 
@@ -145,8 +131,8 @@ public class NaiveVoxelRenderer extends BasicRenderer {
         VAO = new int[1];
         glGenVertexArrays(1, VAO, 0);
 
-        int[] VBO = new int[2];
-        glGenBuffers(2, VBO, 0);
+        int[] VBO = new int[3];
+        glGenBuffers(3, VBO, 0);
 
         glBindVertexArray(VAO[0]);
             glBindBuffer(GL_ARRAY_BUFFER, VBO[0]);
@@ -155,8 +141,17 @@ public class NaiveVoxelRenderer extends BasicRenderer {
                 glEnableVertexAttribArray(1);
             glBindBuffer(GL_ARRAY_BUFFER, 0);
 
+            glBindBuffer(GL_ARRAY_BUFFER, VBO[2]);
+                glBufferData(GL_ARRAY_BUFFER, Float.BYTES * offsetsData.capacity(), offsetsData, GL_STATIC_DRAW);
+                glVertexAttribPointer(2, 3, GL_FLOAT, false, Float.BYTES * 3, 0);
+                glEnableVertexAttribArray(2);
+                glVertexAttribDivisor(2, 1);
+            glBindBuffer(GL_ARRAY_BUFFER, 0);
+
             glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, VBO[1]);
                 glBufferData(GL_ELEMENT_ARRAY_BUFFER, Integer.BYTES * indexData.capacity(), indexData, GL_STATIC_DRAW);
+
+
         glBindVertexArray(0);
 
         MVPloc = glGetUniformLocation(shaderHandle, "MVP");
@@ -168,6 +163,26 @@ public class NaiveVoxelRenderer extends BasicRenderer {
         glCullFace(GL_BACK);
         glFrontFace(GL_CCW);
 
+    }
+
+    private void loadCube() {
+        try {
+            InputStream is = context.getAssets().open("models/pcube.ply");
+            cubePlyObject = new PlyObject(is);
+            cubePlyObject.parse();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void loadShaders() {
+        try {
+            InputStream isV = context.getAssets().open("shaders/vertex_shader.glslv");
+            InputStream isF = context.getAssets().open("shaders/fragment_shader.glslf");
+            shaderHandle = ShaderCompiler.createProgram(isV,isF);
+        }catch(IOException e){
+            System.exit(-1);
+        }
     }
 
     private IntBuffer allocateIntBuffer(int[] array) {
@@ -202,15 +217,16 @@ public class NaiveVoxelRenderer extends BasicRenderer {
         Matrix.multiplyMM(temp, 0, projM, 0, viewM, 0);
 
         Matrix.setIdentityM(modelM,0);
-        //Matrix.translateM(modelM,0,0,0,7);
-        //Matrix.rotateM(modelM,0,angle,1,0,0);
+        Matrix.translateM(modelM,0,0,0,0);
+        Matrix.rotateM(modelM,0,0,1,0,0);
         Matrix.multiplyMM(MVP, 0, temp, 0, modelM, 0);
 
 
         glUseProgram(shaderHandle);
             glBindVertexArray(VAO[0]);
                 glUniformMatrix4fv(MVPloc, 1, false, MVP, 0);
-                glDrawElements(drawMode, countFacesToElement, GL_UNSIGNED_INT, 0);
+                glDrawElementsInstanced(drawMode, countFacesToElement, GL_UNSIGNED_INT, 0, 2);
+                //glDrawElements(drawMode, countFacesToElement, GL_UNSIGNED_INT, 0);
                 //glDrawArrays(drawMode, 0, 3);
             glBindVertexArray(0);
         glUseProgram(0);
