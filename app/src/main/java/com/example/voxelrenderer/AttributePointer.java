@@ -2,14 +2,14 @@ package com.example.voxelrenderer;
 
 
 public class AttributePointer {
-    private int location;
+    private ShaderLocations location;
     private int size;
     private int stride;
     private int offset;
     private boolean instanced;
 
 
-    public AttributePointer(int location, int size, int stride, int offset, boolean instanced) {
+    public AttributePointer(ShaderLocations location, int size, int stride, int offset, boolean instanced) {
         this.location = location;
         this.size = size;
         this.stride = stride;
@@ -33,11 +33,11 @@ public class AttributePointer {
         this.offset = offset;
     }
 
-    public int getLocation() {
+    public ShaderLocations getLocation() {
         return location;
     }
 
-    public void setLocation(int location) {
+    public void setLocation(ShaderLocations location) {
         this.location = location;
     }
 

@@ -71,10 +71,18 @@ import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
 
 public class NaiveVoxelRenderer extends BasicRenderer {
-    public static final int VPOS_LOCATION = 1;
-    public static final int NORMALS_LOCATION = 4;
-    public static final int OFFSETS_LOCATION = 2;
-    public static final int TEXTURE_INDICES = 3;
+    public static final float FOV_Y = 45f;
+    public static final float Z_NEAR = .1f;
+    public static final float Z_FAR = 1000f;
+
+    public static final float SWIPE_SPEED = 1f;
+
+    public enum BuffersIndices {
+        VERTICES_NORMALS,
+        INDICES,
+        OFFSETS,
+        TEXTURE_INDICES
+    }
 
     private PlyObject cubePlyObject;
     private VlyObject modelVlyObject;
@@ -117,8 +125,8 @@ public class NaiveVoxelRenderer extends BasicRenderer {
         super();
         drawMode = GL_TRIANGLES;
 
-        eyePos = new float[]{0, 0, 0};
-        lightPos = new float[]{0, 1, 5};
+        eyePos = new float[3];
+        lightPos = new float[3];
 
         viewM = new float[16];
         modelM = new float[16];
@@ -138,15 +146,14 @@ public class NaiveVoxelRenderer extends BasicRenderer {
     public void onSurfaceChanged(GL10 gl10, int w, int h) {
         super.onSurfaceChanged(gl10, w, h);
         float aspect = ((float) w) / ((float) (h == 0 ? 1 : h));
-        float fovY = 45f;
-        float fovX = 2 * (float) Math.atan(aspect * Math.tan(Math.toRadians(fovY) / 2));
+        float fovX = 2 * (float) Math.atan(aspect * Math.tan(Math.toRadians(FOV_Y) / 2));
 
-        Matrix.perspectiveM(projM, 0, fovY, aspect, 0.1f, 1000f);
+        Matrix.perspectiveM(projM, 0, FOV_Y, aspect, Z_NEAR, Z_FAR);
 
         float maxSize = Math.max(Math.max(modelVlyObject.getX(), modelVlyObject.getY()), modelVlyObject.getZ());
         maxSize *= (float) Math.sqrt(2);
 
-        float cameraDistanceY = (maxSize / 2) / (float) Math.tan(Math.toRadians(45f) / 2);
+        float cameraDistanceY = (maxSize / 2) / (float) Math.tan(Math.toRadians(FOV_Y) / 2);
         float cameraDistanceX = (maxSize / 2) / (float) Math.tan(fovX / 2);
         float cameraDistance = Math.max(cameraDistanceY, cameraDistanceX);
 
@@ -182,9 +189,9 @@ public class NaiveVoxelRenderer extends BasicRenderer {
             public boolean onScroll(@Nullable MotionEvent e1, @NonNull MotionEvent e2, float distanceX, float distanceY) {
                 Log.v(TAG, "distanceX: " + distanceX);
                 if (distanceX > 0)
-                    angle -= 1f;
+                    angle -= SWIPE_SPEED;
                 else
-                    angle += 1f;
+                    angle += SWIPE_SPEED;
 
                 return true;
             }
@@ -198,24 +205,64 @@ public class NaiveVoxelRenderer extends BasicRenderer {
         });
     }
 
-    public void setAttributePointer(int vboIndex, Buffer buffer, AttributePointer pointer) {
-        setAttributePointer(vboIndex, buffer, new AttributePointer[]{pointer});
+    private void setAttributePointer(BuffersIndices vboIndex, int[] intArray, AttributePointer[] pointers) {
+        IntBuffer buffer = allocateIntBuffer(intArray);
+        setAttributePointer(vboIndex, buffer, pointers);
     }
 
-    public void setAttributePointer(int vboIndex, Buffer buffer, AttributePointer[] pointers) {
+    private void setAttributePointer(BuffersIndices vboIndex, float[] floatArray, AttributePointer[] pointers) {
+        FloatBuffer buffer = allocateFloatBuffer(floatArray);
+        setAttributePointer(vboIndex, buffer, pointers);
+    }
+
+    private void setAttributePointer(BuffersIndices vboIndex, Buffer buffer, AttributePointer[] pointers) {
         int elementSize = buffer instanceof FloatBuffer ? Float.BYTES : Integer.BYTES;
         int elementType = buffer instanceof FloatBuffer ? GL_FLOAT : GL_INT;
         glBindVertexArray(VAO[0]);
-            glBindBuffer(GL_ARRAY_BUFFER, VBO[vboIndex]);
-                glBufferData(GL_ARRAY_BUFFER, elementSize * buffer.capacity(), buffer, GL_STATIC_DRAW);
-                for (AttributePointer pointer : pointers) {
-                    glVertexAttribPointer(pointer.getLocation(), pointer.getSize(), elementType, false, elementSize * pointer.getStride(), pointer.getOffset() * elementSize);
-                    glEnableVertexAttribArray(pointer.getLocation());
-                    if (pointer.isInstanced())
-                        glVertexAttribDivisor(pointer.getLocation(), 1);
-                }
-            glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindBuffer(GL_ARRAY_BUFFER, VBO[vboIndex.ordinal()]);
+        glBufferData(GL_ARRAY_BUFFER, elementSize * buffer.capacity(), buffer, GL_STATIC_DRAW);
+        for (AttributePointer pointer : pointers) {
+            glVertexAttribPointer(pointer.getLocation().getValue(), pointer.getSize(), elementType, false, elementSize * pointer.getStride(), pointer.getOffset() * elementSize);
+            glEnableVertexAttribArray(pointer.getLocation().getValue());
+            if (pointer.isInstanced())
+                glVertexAttribDivisor(pointer.getLocation().getValue(), 1);
+        }
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
         glBindVertexArray(0);
+    }
+
+    private void setIndices(int vboIndex, int[] indices) {
+        IntBuffer buffer = allocateIntBuffer(indices);
+        glBindVertexArray(VAO[0]);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, VBO[vboIndex]);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, Integer.BYTES * buffer.capacity(), buffer, GL_STATIC_DRAW);
+        glBindVertexArray(0);
+    }
+
+    private void getUniformLocations() {
+        MVPloc = glGetUniformLocation(shaderHandle, "MVP");
+        modelMloc = glGetUniformLocation(shaderHandle, "modelM");
+        inverseModelMloc = glGetUniformLocation(shaderHandle, "inverseModelM");
+        texUnit = glGetUniformLocation(shaderHandle, "tex");
+        eyePosloc = glGetUniformLocation(shaderHandle, "eyePos");
+        lightPosloc = glGetUniformLocation(shaderHandle, "lightPos");
+    }
+
+    private void setupTexture(Bitmap textureBitmap) {
+        glBindTexture(GL_TEXTURE_2D, texObjId[0]);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+        GLUtils.texImage2D(GL_TEXTURE_2D, 0, textureBitmap, 0);
+        glGenerateMipmap(GL_TEXTURE_2D);
+        glBindTexture(GL_TEXTURE_2D, 0);
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, texObjId[0]);
+        glUseProgram(shaderHandle);
+        glUniform1i(texUnit, 0);
+        glUseProgram(0);
+        glBindTexture(GL_TEXTURE_2D, 0);
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -234,64 +281,36 @@ public class NaiveVoxelRenderer extends BasicRenderer {
         float[] offsets = generateOffsets();
         float[] textureIndices = generateTextureIndices(textureBitmap.getWidth());
 
-
-        FloatBuffer vertexData = allocateFloatBuffer(vertices);
-        IntBuffer indexData = allocateIntBuffer(indices);
-        FloatBuffer offsetsData = allocateFloatBuffer(offsets);
-        FloatBuffer textureIndicesData = allocateFloatBuffer(textureIndices);
-
         countFacesToElement = indices.length;
 
         VAO = new int[1];
         glGenVertexArrays(1, VAO, 0);
 
-        VBO = new int[4];
-        glGenBuffers(4, VBO, 0);
+        VBO = new int[BuffersIndices.values().length];
+        glGenBuffers(BuffersIndices.values().length, VBO, 0);
 
-        setAttributePointer(0, vertexData,
+        setAttributePointer(BuffersIndices.VERTICES_NORMALS, vertices,
                 new AttributePointer[]{
-                        new AttributePointer(VPOS_LOCATION, 3, 6, 0, false),
-                        new AttributePointer(NORMALS_LOCATION, 3, 6, 3, false),
+                        new AttributePointer(ShaderLocations.VPOS_LOCATION, 3, 6, 0, false),
+                        new AttributePointer(ShaderLocations.NORMALS_LOCATION, 3, 6, 3, false),
                 });
 
-        setAttributePointer(2, offsetsData,
-                new AttributePointer(OFFSETS_LOCATION, 3, 3, 0, true));
-        setAttributePointer(3, textureIndicesData,
-                new AttributePointer(TEXTURE_INDICES, 1, 1, 0, true));
+        setAttributePointer(BuffersIndices.OFFSETS, offsets,
+                new AttributePointer[]{
+                        new AttributePointer(ShaderLocations.OFFSETS_LOCATION, 3, 3, 0, true)
+                });
+        setAttributePointer(BuffersIndices.TEXTURE_INDICES, textureIndices,
+                new AttributePointer[]{
+                        new AttributePointer(ShaderLocations.TEXTURE_INDICES, 1, 1, 0, true
+                )});
 
+        setIndices(BuffersIndices.INDICES.ordinal(), indices);
 
-        glBindVertexArray(VAO[0]);
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, VBO[1]);
-            glBufferData(GL_ELEMENT_ARRAY_BUFFER, Integer.BYTES * indexData.capacity(), indexData, GL_STATIC_DRAW);
-        glBindVertexArray(0);
-
-        MVPloc = glGetUniformLocation(shaderHandle, "MVP");
-        modelMloc = glGetUniformLocation(shaderHandle, "modelM");
-        inverseModelMloc = glGetUniformLocation(shaderHandle, "inverseModelM");
-        texUnit = glGetUniformLocation(shaderHandle, "tex");
-
-        eyePosloc = glGetUniformLocation(shaderHandle, "eyePos");
-        lightPosloc = glGetUniformLocation(shaderHandle, "lightPos");
-
+        getUniformLocations();
 
         texObjId = new int[1];
         glGenTextures(1, texObjId, 0);
-        glBindTexture(GL_TEXTURE_2D, texObjId[0]);
-
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-
-        GLUtils.texImage2D(GL_TEXTURE_2D, 0, textureBitmap, 0);
-        glGenerateMipmap(GL_TEXTURE_2D);
-        glBindTexture(GL_TEXTURE_2D, 0);
-
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, texObjId[0]);
-        glUseProgram(shaderHandle);
-        glUniform1i(texUnit, 0);
-        glUseProgram(0);
-        glBindTexture(GL_TEXTURE_2D, 0);
+        setupTexture(textureBitmap);
 
 
         glEnable(GL_CULL_FACE);
@@ -300,7 +319,6 @@ public class NaiveVoxelRenderer extends BasicRenderer {
 
         glEnable(GL_DEPTH_TEST);
         glDepthFunc(GL_LEQUAL);
-
     }
 
     private static double log2(double n) {
