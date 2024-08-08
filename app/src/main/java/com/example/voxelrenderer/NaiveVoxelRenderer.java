@@ -17,10 +17,7 @@ import static android.opengl.GLES20.GL_DEPTH_BUFFER_BIT;
 import static android.opengl.GLES20.GL_DEPTH_TEST;
 import static android.opengl.GLES20.GL_ELEMENT_ARRAY_BUFFER;
 import static android.opengl.GLES20.GL_FLOAT;
-import static android.opengl.GLES20.GL_INT;
 import static android.opengl.GLES20.GL_LEQUAL;
-import static android.opengl.GLES20.GL_LINEAR;
-import static android.opengl.GLES20.GL_LINEAR_MIPMAP_NEAREST;
 import static android.opengl.GLES20.GL_NEAREST;
 import static android.opengl.GLES20.GL_STATIC_DRAW;
 import static android.opengl.GLES20.GL_TEXTURE0;
@@ -36,7 +33,6 @@ import static android.opengl.GLES20.glBufferData;
 import static android.opengl.GLES20.glClear;
 import static android.opengl.GLES20.glCullFace;
 import static android.opengl.GLES20.glDepthFunc;
-import static android.opengl.GLES20.glDrawElements;
 import static android.opengl.GLES20.glEnable;
 import static android.opengl.GLES20.glEnableVertexAttribArray;
 import static android.opengl.GLES20.glFrontFace;
@@ -276,8 +272,8 @@ public class NaiveVoxelRenderer extends BasicRenderer {
         for (int i = 0; i < modelVlyObject.getVoxelNum(); i++) {
             int[] position = positions[i];
             offsets[i * 3] = -(position[0] - marginX);
-            offsets[i * 3 + 1] = (position[2] - marginY);
-            offsets[i * 3 + 2] = -(position[1] - marginZ);
+            offsets[i * 3 + 1] = (position[1] - marginY);
+            offsets[i * 3 + 2] = -(position[2] - marginZ);
         }
 
         return offsets;
@@ -295,7 +291,7 @@ public class NaiveVoxelRenderer extends BasicRenderer {
 
     private void loadVoxelModel() {
         try {
-            InputStream is = context.getAssets().open("models/chrk.vly");
+            InputStream is = context.getAssets().open("models/dragon.vly");
             modelVlyObject = new VlyObject(is);
             modelVlyObject.parse();
         } catch (IOException e) {

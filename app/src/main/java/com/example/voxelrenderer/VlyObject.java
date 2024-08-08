@@ -8,10 +8,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.Arrays;
 import java.util.Iterator;
-import java.util.Map;
-import java.util.TreeMap;
 
-// TODO: Invertire y, z anche nelle posizioni
 // TODO: Voxels diventano un unico array
 
 public class VlyObject {
@@ -67,8 +64,15 @@ public class VlyObject {
         for (int i = 0; i < voxelNum; i++) {
             String voxelPositionColorString = it.next();
 
-            voxelsPositionColorIndex[i] = Arrays.stream(voxelPositionColorString.split(" ")).
+            int[] positions = Arrays.stream(voxelPositionColorString.split(" ")).
                     mapToInt(Integer::valueOf).toArray();
+
+            voxelsPositionColorIndex[i] = new int[4];
+
+            voxelsPositionColorIndex[i][0] = positions[0];
+            voxelsPositionColorIndex[i][1] = positions[2];
+            voxelsPositionColorIndex[i][2] = positions[1];
+            voxelsPositionColorIndex[i][3] = positions[3];
 
             numColors = Math.max(numColors, voxelsPositionColorIndex[i][3] + 1);
         }
