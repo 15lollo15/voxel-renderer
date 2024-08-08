@@ -9,8 +9,6 @@ import java.io.InputStreamReader;
 import java.util.Arrays;
 import java.util.Iterator;
 
-// TODO: Voxels diventano un unico array
-
 public class VlyObject {
 
     private static final String TAG = "VLY_OBJECT";
