@@ -43,7 +43,6 @@ import static android.opengl.GLES20.glFrontFace;
 import static android.opengl.GLES20.glGenBuffers;
 import static android.opengl.GLES20.glGenTextures;
 import static android.opengl.GLES20.glGenerateMipmap;
-import static android.opengl.GLES20.glGetUniformLocation;
 import static android.opengl.GLES20.glTexParameteri;
 import static android.opengl.GLES20.glUniform1i;
 import static android.opengl.GLES20.glUniform3fv;
@@ -97,13 +96,7 @@ public class NaiveVoxelRenderer extends BasicRenderer {
     private float[] lightPos;
 
     private Transformations transformations;
-    private int MVPloc;
-    private int modelMloc;
-    private int inverseModelMloc;
-    private int lightPosloc;
-    private int eyePosloc;
-
-    private int texUnit;
+    private UniformLocations uniformLocations;
 
     private int drawMode;
 
@@ -220,15 +213,6 @@ public class NaiveVoxelRenderer extends BasicRenderer {
         glBindVertexArray(0);
     }
 
-    private void getUniformLocations() {
-        MVPloc = glGetUniformLocation(shaderHandle, "MVP");
-        modelMloc = glGetUniformLocation(shaderHandle, "modelM");
-        inverseModelMloc = glGetUniformLocation(shaderHandle, "inverseModelM");
-        texUnit = glGetUniformLocation(shaderHandle, "tex");
-        eyePosloc = glGetUniformLocation(shaderHandle, "eyePos");
-        lightPosloc = glGetUniformLocation(shaderHandle, "lightPos");
-    }
-
     private void setupTexture(Bitmap textureBitmap) {
         glBindTexture(GL_TEXTURE_2D, texObjId[0]);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
@@ -241,7 +225,7 @@ public class NaiveVoxelRenderer extends BasicRenderer {
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, texObjId[0]);
         glUseProgram(shaderHandle);
-        glUniform1i(texUnit, 0);
+        glUniform1i(uniformLocations.getTexLocation(), 0);
         glUseProgram(0);
         glBindTexture(GL_TEXTURE_2D, 0);
     }
@@ -252,6 +236,8 @@ public class NaiveVoxelRenderer extends BasicRenderer {
         super.onSurfaceCreated(gl10, eglConfig);
 
         loadShaders();
+        uniformLocations = UniformLocations.getInstance(shaderHandle);
+
         loadCube();
         loadVoxelModel();
 
@@ -286,8 +272,6 @@ public class NaiveVoxelRenderer extends BasicRenderer {
                 )});
 
         setIndices(BuffersIndices.INDICES.ordinal(), indices);
-
-        getUniformLocations();
 
         texObjId = new int[1];
         glGenTextures(1, texObjId, 0);
@@ -427,11 +411,11 @@ public class NaiveVoxelRenderer extends BasicRenderer {
         lightPos = eyePos;
         glUseProgram(shaderHandle);
             glBindVertexArray(VAO[0]);
-                glUniformMatrix4fv(MVPloc, 1, false, transformations.getMVP(), 0);
-                glUniformMatrix4fv(modelMloc, 1, false, transformations.getModelMatrix(), 0);
-                glUniformMatrix4fv(inverseModelMloc, 1, true, transformations.getInvertedModelMatrix(), 0);
-                glUniform3fv(lightPosloc, 1, lightPos, 0);
-                glUniform3fv(eyePosloc, 1, eyePos, 0);
+                glUniformMatrix4fv(uniformLocations.getMVPLocation(), 1, false, transformations.getMVP(), 0);
+                glUniformMatrix4fv(uniformLocations.getModelMatrixLocation(), 1, false, transformations.getModelMatrix(), 0);
+                glUniformMatrix4fv(uniformLocations.getInverseModelMatrixLocation(), 1, true, transformations.getInvertedModelMatrix(), 0);
+                glUniform3fv(uniformLocations.getLightPositionLocation(), 1, lightPos, 0);
+                glUniform3fv(uniformLocations.getEyePositionLocation(), 1, eyePos, 0);
                 glDrawElementsInstanced(drawMode, countFacesToElement, GL_UNSIGNED_INT, 0, modelVlyObject.getVoxelNum());
             glBindVertexArray(0);
         glUseProgram(0);
