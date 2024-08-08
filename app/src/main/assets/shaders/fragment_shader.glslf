@@ -24,6 +24,6 @@ void main() {
     vec3 lightDir = normalize(lightPos-fragModel);
     float diff = max(dot(lightDir,transfNormal),0.0);
     vec3 halfWay = normalize(lightDir+eyeDir);
-    float spec = pow(max(dot(halfWay,transfNormal), 0.0),10.0);
+    float spec = pow(max(dot(halfWay,transfNormal), 0.0), 1.0);
     fragColor = ambientComponent + diff*diffuseComponent + spec*specComponent;
 }
