@@ -6,7 +6,6 @@ import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.opengl.GLSurfaceView;
 import android.opengl.GLUtils;
-import android.opengl.Matrix;
 import android.util.Log;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
@@ -97,13 +96,7 @@ public class NaiveVoxelRenderer extends BasicRenderer {
     private float[] eyePos;
     private float[] lightPos;
 
-    private float[] viewM;
-    private float[] modelM;
-    private float[] inverseModelM;
-    private float[] projM;
-    private float[] MVP;
-    private float[] temp;
-
+    private Transformations transformations;
     private int MVPloc;
     private int modelMloc;
     private int inverseModelMloc;
@@ -128,16 +121,7 @@ public class NaiveVoxelRenderer extends BasicRenderer {
         eyePos = new float[3];
         lightPos = new float[3];
 
-        viewM = new float[16];
-        modelM = new float[16];
-        inverseModelM = new float[16];
-        projM = new float[16];
-        MVP = new float[16];
-        temp = new float[16];
-        Matrix.setIdentityM(viewM, 0);
-        Matrix.setIdentityM(modelM, 0);
-        Matrix.setIdentityM(projM, 0);
-        Matrix.setIdentityM(MVP, 0);
+        transformations = new Transformations();
 
         angle = 0f;
     }
@@ -148,24 +132,21 @@ public class NaiveVoxelRenderer extends BasicRenderer {
         float aspect = ((float) w) / ((float) (h == 0 ? 1 : h));
         float fovX = 2 * (float) Math.atan(aspect * Math.tan(Math.toRadians(FOV_Y) / 2));
 
-        Matrix.perspectiveM(projM, 0, FOV_Y, aspect, Z_NEAR, Z_FAR);
+        transformations.setProjectionMatrix(FOV_Y, aspect, Z_NEAR, Z_FAR);
 
         float maxSize = Math.max(Math.max(modelVlyObject.getX(), modelVlyObject.getY()), modelVlyObject.getZ());
         maxSize *= (float) Math.sqrt(2);
 
         float cameraDistanceY = (maxSize / 2) / (float) Math.tan(Math.toRadians(FOV_Y) / 2);
         float cameraDistanceX = (maxSize / 2) / (float) Math.tan(fovX / 2);
-        float cameraDistance = Math.max(cameraDistanceY, cameraDistanceX);
 
-        maxZoom = cameraDistance;
+        maxZoom = Math.max(cameraDistanceY, cameraDistanceX);
         minZoom = 1.0f; //TODO: pensarlo meglio
         zoom = maxZoom;
 
         eyePos[2] = zoom;
 
-        Matrix.setLookAtM(viewM, 0, eyePos[0], eyePos[1], eyePos[2],
-                0, 0, 0,
-                0, 1, 0);
+        transformations.setViewMatrix(eyePos);
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -175,7 +156,7 @@ public class NaiveVoxelRenderer extends BasicRenderer {
 
         scaleDetector = new ScaleGestureDetector(context, new ScaleGestureDetector.SimpleOnScaleGestureListener() {
             @Override
-            public boolean onScale(ScaleGestureDetector detector) {
+            public boolean onScale(@NonNull ScaleGestureDetector detector) {
 
                 zoom /= detector.getScaleFactor();
                 zoom = Math.max(minZoom, Math.min(zoom, maxZoom));
@@ -436,33 +417,23 @@ public class NaiveVoxelRenderer extends BasicRenderer {
 
         eyePos[2] = zoom;
 
-        Matrix.setLookAtM(viewM, 0, eyePos[0], eyePos[1], eyePos[2],
-                0, 0, 0,
-                0, 1, 0);
+        transformations.setViewMatrix(eyePos);
+        transformations.setModelMatrix(0, 0, 0, angle);
 
-        Matrix.multiplyMM(temp, 0, projM, 0, viewM, 0);
-
-        Matrix.setIdentityM(modelM, 0);
-        Matrix.translateM(modelM, 0, 0, 0, 0);
-        Matrix.rotateM(modelM, 0, angle, 0, 1, 0);
-
-        Matrix.invertM(inverseModelM, 0, modelM, 0);
-
-        Matrix.multiplyMM(MVP, 0, temp, 0, modelM, 0);
 
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, texObjId[0]);
 
         lightPos = eyePos;
         glUseProgram(shaderHandle);
-        glBindVertexArray(VAO[0]);
-        glUniformMatrix4fv(MVPloc, 1, false, MVP, 0);
-        glUniformMatrix4fv(modelMloc, 1, false, modelM, 0);
-        glUniformMatrix4fv(inverseModelMloc, 1, true, inverseModelM, 0);
-        glUniform3fv(lightPosloc, 1, lightPos, 0);
-        glUniform3fv(eyePosloc, 1, eyePos, 0);
-        glDrawElementsInstanced(drawMode, countFacesToElement, GL_UNSIGNED_INT, 0, modelVlyObject.getVoxelNum());
-        glBindVertexArray(0);
+            glBindVertexArray(VAO[0]);
+                glUniformMatrix4fv(MVPloc, 1, false, transformations.getMVP(), 0);
+                glUniformMatrix4fv(modelMloc, 1, false, transformations.getModelMatrix(), 0);
+                glUniformMatrix4fv(inverseModelMloc, 1, true, transformations.getInvertedModelMatrix(), 0);
+                glUniform3fv(lightPosloc, 1, lightPos, 0);
+                glUniform3fv(eyePosloc, 1, eyePos, 0);
+                glDrawElementsInstanced(drawMode, countFacesToElement, GL_UNSIGNED_INT, 0, modelVlyObject.getVoxelNum());
+            glBindVertexArray(0);
         glUseProgram(0);
 
     }
