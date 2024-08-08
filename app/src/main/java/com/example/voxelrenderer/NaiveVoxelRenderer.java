@@ -225,10 +225,19 @@ public class NaiveVoxelRenderer extends BasicRenderer {
 
     }
 
+    private static double log2(double n)
+    {
+        return Math.log(n) / Math.log(2);
+    }
+
+    private int getImageWidth(int numColors) {
+        return (int)Math.pow(2, Math.ceil(log2(numColors)));
+    }
+
     private Bitmap generateTexture() {
         int[] colors = modelVlyObject.getColors();
         int numColors = modelVlyObject.getNumColors();
-        int imageWidth = findFirst2Pow(numColors); // TODO: Controllare se esiste un modo migliore
+        int imageWidth = getImageWidth(numColors);
 
         int[] data = new int[imageWidth];
         for (int i = 0; i < numColors; i++) {
@@ -240,14 +249,6 @@ public class NaiveVoxelRenderer extends BasicRenderer {
         }
 
         return Bitmap.createBitmap(data, imageWidth, 1, Bitmap.Config.ARGB_8888);
-    }
-
-    private int findFirst2Pow(int n) {
-        int pow = 1;
-        while (pow < n) {
-            pow *= 2;
-        }
-        return pow;
     }
 
     private float[] generateTextureIndices(float textWidth) {
@@ -291,7 +292,7 @@ public class NaiveVoxelRenderer extends BasicRenderer {
 
     private void loadVoxelModel() {
         try {
-            InputStream is = context.getAssets().open("models/dragon.vly");
+            InputStream is = context.getAssets().open("models/monu16.vly");
             modelVlyObject = new VlyObject(is);
             modelVlyObject.parse();
         } catch (IOException e) {
