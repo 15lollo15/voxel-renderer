@@ -1,5 +1,7 @@
 package com.example.voxelrenderer;
 
+import android.util.Log;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -8,6 +10,9 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.TreeMap;
+
+// TODO: Invertire y, z anche nelle posizioni
+// TODO: Voxels diventano un unico array
 
 public class VlyObject {
 
@@ -18,10 +23,13 @@ public class VlyObject {
     private int z;
     private int voxelNum;
     private int[][] voxelsPositionColorIndex;
-    private Map<Integer, int[]> colors;
+    private int[] colors;
+
+    private int numColors;
 
     public VlyObject(InputStream inputStream) {
         this.inputStream = inputStream;
+        numColors = 0;
     }
 
     public void parse() throws IOException {
@@ -39,17 +47,18 @@ public class VlyObject {
     }
 
     private void readColors(Iterator<String> it) {
-        colors = new TreeMap<>();
+        colors = new int[numColors * 3];
         while (it.hasNext()) {
             String colorsIndexesValuesString = it.next();
-
             String[] splitted = colorsIndexesValuesString.split(" ");
             int index = Integer.parseInt(splitted[0]);
             int r = Integer.parseInt(splitted[1]);
             int g = Integer.parseInt(splitted[2]);
             int b = Integer.parseInt(splitted[3]);
 
-            colors.put(index, new int[]{r, g, b});
+            colors[index * 3] = r;
+            colors[index * 3 + 1] = g;
+            colors[index * 3 + 2] = b;
         }
     }
 
@@ -60,7 +69,10 @@ public class VlyObject {
 
             voxelsPositionColorIndex[i] = Arrays.stream(voxelPositionColorString.split(" ")).
                     mapToInt(Integer::valueOf).toArray();
+
+            numColors = Math.max(numColors, voxelsPositionColorIndex[i][3] + 1);
         }
+        Log.v(TAG, "numcolors: " + numColors);
     }
 
     private void readVoxelNum(String voxelNumString) {
@@ -97,7 +109,11 @@ public class VlyObject {
         return voxelsPositionColorIndex;
     }
 
-    public Map<Integer, int[]> getColors() {
+    public int[] getColors() {
         return colors;
+    }
+
+    public int getNumColors() {
+        return numColors;
     }
 }
