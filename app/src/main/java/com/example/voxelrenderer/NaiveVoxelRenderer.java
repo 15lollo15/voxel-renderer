@@ -42,6 +42,7 @@ import static android.opengl.GLES20.glGenerateMipmap;
 import static android.opengl.GLES20.glGetUniformLocation;
 import static android.opengl.GLES20.glTexParameteri;
 import static android.opengl.GLES20.glUniform1i;
+import static android.opengl.GLES20.glUniform3fv;
 import static android.opengl.GLES20.glUniformMatrix4fv;
 import static android.opengl.GLES20.glUseProgram;
 import static android.opengl.GLES20.glVertexAttribPointer;
@@ -70,17 +71,24 @@ public class NaiveVoxelRenderer extends BasicRenderer {
     private int countFacesToElement;
     private int[] texObjId;
 
-
+    private float[] eyePos;
+    private float[] lightPos;
 
     private float[] viewM;
     private float[] modelM;
+    private float[] inverseModelM;
     private float[] projM;
     private float[] MVP;
     private float[] temp;
 
 
     private int MVPloc;
-    private  int texUnit;
+    private int modelMloc;
+    private int inverseModelMloc;
+    private int lightPosloc;
+    private int eyePosloc;
+
+    private int texUnit;
 
     private int drawMode;
 
@@ -89,8 +97,12 @@ public class NaiveVoxelRenderer extends BasicRenderer {
         super();
         drawMode = GL_TRIANGLES;
 
+        eyePos = new float[] {0, 0, 0};
+        lightPos = new float[] {0, 1, 5};
+
         viewM = new float[16];
         modelM = new float[16];
+        inverseModelM = new float[16];
         projM = new float[16];
         MVP = new float[16];
         temp = new float[16];
@@ -118,7 +130,9 @@ public class NaiveVoxelRenderer extends BasicRenderer {
         float cameraDistanceX = (maxSize / 2) / (float) Math.tan(fovX / 2);
         float cameraDistance = Math.max(cameraDistanceY, cameraDistanceX);
 
-        Matrix.setLookAtM(viewM, 0, 0, 0f, cameraDistance,
+        eyePos[2] = cameraDistance;
+
+        Matrix.setLookAtM(viewM, 0, eyePos[0], eyePos[1], eyePos[2],
                 0, 0, 0,
                 0, 1, 0);
     }
@@ -159,7 +173,9 @@ public class NaiveVoxelRenderer extends BasicRenderer {
             glBindBuffer(GL_ARRAY_BUFFER, VBO[0]);
                 glBufferData(GL_ARRAY_BUFFER, Float.BYTES * vertexData.capacity(), vertexData, GL_STATIC_DRAW);
                 glVertexAttribPointer(1, 3, GL_FLOAT, false, Float.BYTES * 6, 0);
+                glVertexAttribPointer(4, 3, GL_FLOAT, false, Float.BYTES * 6, 3 * Float.BYTES);
                 glEnableVertexAttribArray(1);
+                glEnableVertexAttribArray(4);
             glBindBuffer(GL_ARRAY_BUFFER, 0);
 
             glBindBuffer(GL_ARRAY_BUFFER, VBO[2]);
@@ -183,7 +199,12 @@ public class NaiveVoxelRenderer extends BasicRenderer {
         glBindVertexArray(0);
 
         MVPloc = glGetUniformLocation(shaderHandle, "MVP");
+        modelMloc = glGetUniformLocation(shaderHandle, "modelM");
+        inverseModelMloc = glGetUniformLocation(shaderHandle, "inverseModelM");
         texUnit = glGetUniformLocation(shaderHandle, "tex");
+
+        eyePosloc = glGetUniformLocation(shaderHandle, "eyePos");
+        lightPosloc = glGetUniformLocation(shaderHandle, "lightPos");
 
 
 
@@ -292,7 +313,7 @@ public class NaiveVoxelRenderer extends BasicRenderer {
 
     private void loadVoxelModel() {
         try {
-            InputStream is = context.getAssets().open("models/monu16.vly");
+            InputStream is = context.getAssets().open("models/simpleH.vly");
             modelVlyObject = new VlyObject(is);
             modelVlyObject.parse();
         } catch (IOException e) {
@@ -344,14 +365,22 @@ public class NaiveVoxelRenderer extends BasicRenderer {
         Matrix.setIdentityM(modelM,0);
         Matrix.translateM(modelM,0,0,0,0);
         Matrix.rotateM(modelM,0,angle,0,1,0);
+
+        Matrix.invertM(inverseModelM, 0,modelM,0);
+
         Matrix.multiplyMM(MVP, 0, temp, 0, modelM, 0);
 
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, texObjId[0]);
 
+        lightPos = eyePos;
         glUseProgram(shaderHandle);
             glBindVertexArray(VAO[0]);
                 glUniformMatrix4fv(MVPloc, 1, false, MVP, 0);
+                glUniformMatrix4fv(modelMloc, 1, false, modelM, 0);
+                glUniformMatrix4fv(inverseModelMloc, 1, true, inverseModelM, 0);
+                glUniform3fv(lightPosloc,1,lightPos,0);
+                glUniform3fv(eyePosloc,1,eyePos,0);
                 glDrawElementsInstanced(drawMode, countFacesToElement, GL_UNSIGNED_INT, 0, modelVlyObject.getVoxelNum());
             glBindVertexArray(0);
         glUseProgram(0);
