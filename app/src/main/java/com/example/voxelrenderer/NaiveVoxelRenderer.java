@@ -1,11 +1,16 @@
 package com.example.voxelrenderer;
 
 import android.annotation.SuppressLint;
+import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Color;
+import android.opengl.GLSurfaceView;
 import android.opengl.GLUtils;
 import android.opengl.Matrix;
+import android.util.Log;
+import android.view.GestureDetector;
 import android.view.MotionEvent;
+import android.view.ScaleGestureDetector;
 import android.view.View;
 
 import static android.opengl.GLES20.GL_ARRAY_BUFFER;
@@ -51,6 +56,10 @@ import static android.opengl.GLES30.glDrawElementsInstanced;
 import static android.opengl.GLES30.glGenVertexArrays;
 import static android.opengl.GLES30.glVertexAttribDivisor;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.core.view.GestureDetectorCompat;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -92,6 +101,12 @@ public class NaiveVoxelRenderer extends BasicRenderer {
 
     private int drawMode;
 
+    private GestureDetector  gestureDetector;
+    private ScaleGestureDetector scaleDetector;
+
+    private float maxZoom;
+    private float minZoom;
+    private float zoom;
 
     public NaiveVoxelRenderer() {
         super();
@@ -130,12 +145,55 @@ public class NaiveVoxelRenderer extends BasicRenderer {
         float cameraDistanceX = (maxSize / 2) / (float) Math.tan(fovX / 2);
         float cameraDistance = Math.max(cameraDistanceY, cameraDistanceX);
 
-        eyePos[2] = cameraDistance;
+        maxZoom = cameraDistance;
+        minZoom = 1.0f; //TODO: pensarlo meglio
+        zoom = maxZoom;
+
+        eyePos[2] = zoom;
 
         Matrix.setLookAtM(viewM, 0, eyePos[0], eyePos[1], eyePos[2],
                 0, 0, 0,
                 0, 1, 0);
     }
+
+    @SuppressLint("ClickableViewAccessibility")
+    @Override
+    public void setContextAndSurface(Context context, GLSurfaceView surface) {
+        super.setContextAndSurface(context, surface);
+
+        scaleDetector = new ScaleGestureDetector(context, new ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            @Override
+            public boolean onScale(ScaleGestureDetector detector) {
+
+                zoom /= detector.getScaleFactor();
+                zoom = Math.max(minZoom, Math.min(zoom, maxZoom));
+
+                return true;
+            }
+        });
+
+        gestureDetector = new GestureDetector(context, new GestureDetector.SimpleOnGestureListener(){
+            @Override
+            public boolean onScroll(@Nullable MotionEvent e1, @NonNull MotionEvent e2, float distanceX, float distanceY) {
+                Log.v(TAG, "distanceX: " + distanceX);
+                if (distanceX > 0)
+                    angle -= 1f;
+                else
+                    angle += 1f;
+
+                return true;
+            }
+        });
+
+
+
+        surface.setOnTouchListener((v, event) -> {
+            gestureDetector.onTouchEvent(event);
+            scaleDetector.onTouchEvent(event);
+            return true;
+        });
+    }
+
 
     @SuppressLint("ClickableViewAccessibility")
     @Override
@@ -235,15 +293,6 @@ public class NaiveVoxelRenderer extends BasicRenderer {
         glEnable(GL_DEPTH_TEST);
         glDepthFunc(GL_LEQUAL);
 
-        this.getSurface().setOnTouchListener(new View.OnTouchListener() {
-            @SuppressLint("ClickableViewAccessibility")
-            @Override
-            public boolean onTouch(View view, MotionEvent motionEvent) {
-                angle += 10f;
-                return false;
-            }
-        });
-
     }
 
     private static double log2(double n)
@@ -313,7 +362,7 @@ public class NaiveVoxelRenderer extends BasicRenderer {
 
     private void loadVoxelModel() {
         try {
-            InputStream is = context.getAssets().open("models/simpleH.vly");
+            InputStream is = context.getAssets().open("models/dragon.vly");
             modelVlyObject = new VlyObject(is);
             modelVlyObject.parse();
         } catch (IOException e) {
@@ -359,6 +408,12 @@ public class NaiveVoxelRenderer extends BasicRenderer {
     @Override
     public void onDrawFrame(GL10 gl10) {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        eyePos[2] = zoom;
+
+        Matrix.setLookAtM(viewM, 0, eyePos[0], eyePos[1], eyePos[2],
+                0, 0, 0,
+                0, 1, 0);
 
         Matrix.multiplyMM(temp, 0, projM, 0, viewM, 0);
 
