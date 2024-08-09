@@ -67,6 +67,9 @@ import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
 
 public class VoxelRenderer extends BasicRenderer {
+    public static final String VERTEX_SHADER_PATH = "shaders/vertex_shader.glslv";
+    public static final String FRAGMENT_SHADER_PATH = "shaders/fragment_shader.glslf";
+
     public static final float FOV_Y = 45f;
     public static final float Z_NEAR = .1f;
     public static final float Z_FAR = 1000f;
@@ -298,7 +301,7 @@ public class VoxelRenderer extends BasicRenderer {
             cubePlyObject = new PlyObject(is);
             cubePlyObject.parse();
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new CubeLoadingFailedException(e);
         }
     }
 
@@ -309,14 +312,14 @@ public class VoxelRenderer extends BasicRenderer {
             modelVlyObject.parse();
             computeMaxSize();
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new VoxelLoadingFailedException(e);
         }
     }
 
     private void loadShaders() {
         try {
-            InputStream isV = context.getAssets().open("shaders/vertex_shader.glslv");
-            InputStream isF = context.getAssets().open("shaders/fragment_shader.glslf");
+            InputStream isV = context.getAssets().open(VERTEX_SHADER_PATH);
+            InputStream isF = context.getAssets().open(FRAGMENT_SHADER_PATH);
             shaderHandle = ShaderCompiler.createProgram(isV, isF);
         } catch (IOException e) {
             System.exit(-1);
@@ -371,6 +374,17 @@ public class VoxelRenderer extends BasicRenderer {
             glBindVertexArray(0);
         glUseProgram(0);
 
+    }
+
+    public static class CubeLoadingFailedException extends RuntimeException{
+        public CubeLoadingFailedException(Throwable cause) {
+            super(cause);
+        }
+    }
+    public static class VoxelLoadingFailedException extends RuntimeException{
+        public VoxelLoadingFailedException(Throwable cause) {
+            super(cause);
+        }
     }
 
 }
