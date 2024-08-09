@@ -56,7 +56,7 @@ public class ModelViewerActivity extends AppCompatActivity {
         surface.setPreserveEGLContextOnPause(true);
         surface.setEGLConfigChooser((egl10, eglDisplay) -> getConfig());
 
-        NaiveVoxelRenderer renderer = new NaiveVoxelRenderer();
+        VoxelRenderer renderer = new VoxelRenderer();
 
         setContentView(surface);
         renderer.setContextAndSurface(this, surface);

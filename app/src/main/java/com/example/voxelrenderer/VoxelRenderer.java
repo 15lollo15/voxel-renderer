@@ -66,7 +66,7 @@ import java.nio.IntBuffer;
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
 
-public class NaiveVoxelRenderer extends BasicRenderer {
+public class VoxelRenderer extends BasicRenderer {
     public static final float FOV_Y = 45f;
     public static final float Z_NEAR = .1f;
     public static final float Z_FAR = 1000f;
@@ -75,6 +75,7 @@ public class NaiveVoxelRenderer extends BasicRenderer {
 
 
     public static final float SWIPE_SPEED = 1f;
+    public static final float TAP_SPEED = 30f;
 
     public enum BuffersIndices {
         VERTICES_NORMALS,
@@ -107,7 +108,7 @@ public class NaiveVoxelRenderer extends BasicRenderer {
     private float maxZoom;
     private float minZoom;
 
-    public NaiveVoxelRenderer() {
+    public VoxelRenderer() {
         super();
         drawMode = GL_TRIANGLES;
 
@@ -154,7 +155,6 @@ public class NaiveVoxelRenderer extends BasicRenderer {
         ScaleGestureDetector scaleDetector = new ScaleGestureDetector(context, new ScaleGestureDetector.SimpleOnScaleGestureListener() {
             @Override
             public boolean onScale(@NonNull ScaleGestureDetector detector) {
-
                 eyePos[2] /= detector.getScaleFactor();
                 eyePos[2] = Math.max(minZoom, Math.min(eyePos[2], maxZoom));
 
@@ -170,6 +170,15 @@ public class NaiveVoxelRenderer extends BasicRenderer {
                 else
                     angle += SWIPE_SPEED;
 
+                return true;
+            }
+
+            @Override
+            public boolean onSingleTapUp(@NonNull MotionEvent e) {
+                if (e.getX() > surface.getWidth() / 2f)
+                    angle += TAP_SPEED;
+                else
+                    angle -= TAP_SPEED;
                 return true;
             }
         });
