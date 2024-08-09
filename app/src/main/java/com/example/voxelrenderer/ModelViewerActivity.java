@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.pm.ConfigurationInfo;
 import android.os.Bundle;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 
 import android.opengl.GLSurfaceView;
@@ -12,6 +13,7 @@ import android.util.Log;
 import android.view.Window;
 import android.view.WindowManager;
 
+import com.example.voxelrenderer.renderers.BasicRenderer;
 import com.example.voxelrenderer.renderers.VoxelRenderer;
 
 import javax.microedition.khronos.egl.EGL10;
@@ -26,10 +28,22 @@ public class ModelViewerActivity extends AppCompatActivity {
 
     private GLSurfaceView surface;
     private boolean isSurfaceCreated;
+    private String modelName;
+    private BasicRenderer renderer;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        float angle = 0f;
+        if (savedInstanceState == null && getIntent().getExtras() == null) {
+            modelName = "simple.vly";
+        } else if (savedInstanceState != null){
+            modelName = savedInstanceState.getString("modelName");
+            angle = savedInstanceState.getFloat("angle");
+        }else {
+            modelName = getIntent().getExtras().getString("modelName");
+        }
 
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         getWindow().setFlags
@@ -58,7 +72,7 @@ public class ModelViewerActivity extends AppCompatActivity {
         surface.setPreserveEGLContextOnPause(true);
         surface.setEGLConfigChooser((egl10, eglDisplay) -> getConfig());
 
-        VoxelRenderer renderer = new VoxelRenderer();
+        renderer = new VoxelRenderer(modelName, angle);
 
         setContentView(surface);
         renderer.setContextAndSurface(this, surface);
@@ -114,6 +128,13 @@ public class ModelViewerActivity extends AppCompatActivity {
         super.onPause();
         if (isSurfaceCreated)
             surface.onPause();
+    }
+
+    @Override
+    public void onSaveInstanceState(@NonNull Bundle b) {
+        super.onSaveInstanceState(b);
+        b.putString("modelName", modelName);
+        b.putFloat("angle", ((VoxelRenderer)renderer).getAngle());
     }
 
 }

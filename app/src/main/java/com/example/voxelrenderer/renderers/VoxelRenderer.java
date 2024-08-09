@@ -115,8 +115,11 @@ public class VoxelRenderer extends BasicRenderer {
     private float maxZoom;
     private float minZoom;
 
-    public VoxelRenderer() {
+    private String modelName;
+
+    public VoxelRenderer(String modelName, float angle) {
         super();
+        this.modelName = modelName;
         drawMode = GL_TRIANGLES;
 
         eyePos = new float[3];
@@ -124,7 +127,7 @@ public class VoxelRenderer extends BasicRenderer {
 
         transformations = new Transformations();
 
-        angle = 0f;
+        this.angle = angle;
     }
 
 
@@ -311,7 +314,7 @@ public class VoxelRenderer extends BasicRenderer {
 
     private void loadVoxelModel() {
         try {
-            InputStream is = context.getAssets().open("models/christmas.vly");
+            InputStream is = context.getAssets().open("models/"+ modelName);
             modelVlyObject = new VlyObject(is);
             modelVlyObject.parse();
             computeMaxSize();
@@ -380,6 +383,10 @@ public class VoxelRenderer extends BasicRenderer {
 
     }
 
+    public float getAngle() {
+        return angle;
+    }
+
     public static class CubeLoadingFailedException extends RuntimeException{
         public CubeLoadingFailedException(Throwable cause) {
             super(cause);
@@ -390,5 +397,4 @@ public class VoxelRenderer extends BasicRenderer {
             super(cause);
         }
     }
-
 }
