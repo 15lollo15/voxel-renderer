@@ -2,6 +2,8 @@ package com.example.voxelrenderer;
 
 import android.util.Log;
 
+import androidx.annotation.NonNull;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -11,16 +13,17 @@ import java.util.Iterator;
 import java.util.Map;
 
 public class PlyObject {
+    public static final String TAG = "PLY_PARSER";
 
-    private float vertices[];
-    private int faces[];
+    private float[] vertices;
+    private int[] faces;
     private int countVertices;
     private int countFaces;
-    private InputStream inputStream;
-    private Map<Integer,String> mapProperties;
+    private final InputStream inputStream;
+    private final Map<Integer,String> mapProperties;
 
     public PlyObject(InputStream inputStream){
-        mapProperties = new HashMap<Integer,String>();
+        mapProperties = new HashMap<>();
         this.inputStream = inputStream;
     }
 
@@ -29,7 +32,7 @@ public class PlyObject {
         BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
         Iterator<String> it = reader.lines().iterator();
         String s;
-        String propLines[];
+        String[] propLines;
 
         countVertices = 0;
         countFaces = 0;
@@ -52,7 +55,7 @@ public class PlyObject {
                     continue;
                 index1+=("element vertex ").length();
                 countVertices = Integer.parseInt(s.substring(index1).trim());
-                Log.v("PLY_PARSER", "Found " + countVertices + " vertices");
+                Log.v(TAG, "Found " + countVertices + " vertices");
             }
             else if(s.startsWith("property") && countFaces==0){
                 propLines = s.split(" ");
@@ -65,18 +68,18 @@ public class PlyObject {
             }
             else if(s.contains("element face")){
 
-                if(mapProperties.size()>0){
+                if(!mapProperties.isEmpty()){
                     for(int k : mapProperties.keySet())
-                        Log.d("PLY_PARSER",
+                        Log.d(TAG,
                                 "Prop num " + k + " name " + mapProperties.get(k));
                 }
 
                 int index1=s.lastIndexOf("element face ");
                 if(index1==-1)
                     continue;
-                index1+=("element face ").length();;
+                index1+=("element face ").length();
                 countFaces = Integer.parseInt(s.substring(index1).trim());
-                Log.v("PLY_PARSER","Found " + countFaces + " faces/triangles");
+                Log.v(TAG,"Found " + countFaces + " faces/triangles");
                 faces = new int[countFaces*3]; //we assume triangles
             }
             else if(s.startsWith("end_header")){
@@ -117,6 +120,7 @@ public class PlyObject {
 
     }
 
+    @NonNull
     @Override
     public String toString(){ //still assuming faces must be triangles
         StringBuilder out;
@@ -132,11 +136,11 @@ public class PlyObject {
                 if((i%mapProperties.size())==0 )
                     out.append("\n");
 
-                out.append(" "+vertices[i]+" ");
+                out.append(" ").append(vertices[i]).append(" ");
 
             }
 
-            out.append("\n" + "Printing faces " + countFaces + "->" + faces.length);
+            out.append("\n" + "Printing faces ").append(countFaces).append("->").append(faces.length);
             out.append("\n");
 
             for (int i = 0; i < faces.length; i++) {
@@ -144,7 +148,7 @@ public class PlyObject {
                 if((i%3)==0)
                     out.append("\n");
 
-                out.append(" "+faces[i]+" ");
+                out.append(" ").append(faces[i]).append(" ");
             }
         }
         return out.toString();

@@ -1,5 +1,7 @@
 package com.example.voxelrenderer;
 
+import android.graphics.Bitmap;
+import android.graphics.Color;
 import android.util.Log;
 
 import java.io.BufferedReader;
@@ -19,6 +21,7 @@ public class VlyObject {
     private int voxelNum;
     private int[][] voxelsPositionColorIndex;
     private int[] colors;
+    private float[] offsets;
 
     private int numColors;
 
@@ -39,6 +42,8 @@ public class VlyObject {
 
         reader.close();
         inputStream.close();
+
+        generateOffsets();
     }
 
     private void readColors(Iterator<String> it) {
@@ -90,6 +95,55 @@ public class VlyObject {
         z = sizes[1];
     }
 
+    private void generateOffsets() {
+        offsets = new float[3 * voxelNum];
+
+        float marginX = (x - 1) * 0.5f;
+        float marginY = (y - 1) * 0.5f;
+        float marginZ = (z - 1) * 0.5f;
+
+
+        for (int i = 0; i < voxelNum; i++) {
+            int[] position = voxelsPositionColorIndex[i];
+            offsets[i * 3] = -(position[0] - marginX);
+            offsets[i * 3 + 1] = (position[1] - marginY);
+            offsets[i * 3 + 2] = -(position[2] - marginZ);
+        }
+    }
+
+    private static double log2(double n) {
+        return Math.log(n) / Math.log(2);
+    }
+
+    private int getImageWidth(int numColors) {
+        return (int) Math.pow(2, Math.ceil(log2(numColors)));
+    }
+
+    public Bitmap generateTexture() {
+        int imageWidth = getImageWidth(numColors);
+
+        int[] data = new int[imageWidth];
+        for (int i = 0; i < numColors; i++) {
+            data[i] = Color.rgb(
+                    colors[i * 3],
+                    colors[i * 3 + 1],
+                    colors[i * 3 + 2]
+            );
+        }
+
+        return Bitmap.createBitmap(data, imageWidth, 1, Bitmap.Config.ARGB_8888);
+    }
+
+    public float[] generateTextureIndices() {
+        float textWidth = getImageWidth(numColors);
+        float[] indices = new float[voxelNum];
+
+        for (int i = 0; i < voxelNum; i++) {
+            indices[i] = voxelsPositionColorIndex[i][3] / textWidth + (1 / (textWidth * 2));
+        }
+
+        return indices;
+    }
 
     public int getX() {
         return x;
@@ -117,5 +171,9 @@ public class VlyObject {
 
     public int getNumColors() {
         return numColors;
+    }
+
+    public float[] getOffsets() {
+        return offsets;
     }
 }

@@ -21,7 +21,7 @@ public class BasicRenderer implements GLSurfaceView.Renderer {
     protected Point currentScreen;
     protected Context context;
     protected GLSurfaceView surface;
-    protected static String TAG;
+    protected static String TAG = BasicRenderer.class.getSimpleName();
 
     public BasicRenderer() {
         this(0, 0, 0);
@@ -32,7 +32,6 @@ public class BasicRenderer implements GLSurfaceView.Renderer {
     }
 
     public BasicRenderer(float r, float g, float b, float a) {
-        TAG = getClass().getSimpleName();
         clearScreen = new float[]{r, g, b, a};
         currentScreen = new Point(0, 0);
     }

@@ -5,19 +5,12 @@ import android.content.Context;
 import android.content.pm.ConfigurationInfo;
 import android.os.Bundle;
 
-import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
 
 import android.opengl.GLSurfaceView;
 import android.util.Log;
 import android.view.Window;
 import android.view.WindowManager;
-
-import java.io.IOException;
-import java.io.InputStream;
 
 import javax.microedition.khronos.egl.EGL10;
 import javax.microedition.khronos.egl.EGLConfig;
@@ -61,12 +54,7 @@ public class ModelViewerActivity extends AppCompatActivity {
         surface = new GLSurfaceView(this);
         surface.setEGLContextClientVersion(supported);
         surface.setPreserveEGLContextOnPause(true);
-        surface.setEGLConfigChooser(new GLSurfaceView.EGLConfigChooser() {
-            @Override
-            public EGLConfig chooseConfig(EGL10 egl10, EGLDisplay eglDisplay) {
-                return getConfig(DESIRED_DEPTH_SIZE);
-            }
-        });
+        surface.setEGLConfigChooser((egl10, eglDisplay) -> getConfig());
 
         NaiveVoxelRenderer renderer = new NaiveVoxelRenderer();
 
@@ -79,7 +67,7 @@ public class ModelViewerActivity extends AppCompatActivity {
 
     }
 
-    private EGLConfig getConfig(int desiredDepthSize) {
+    private EGLConfig getConfig() {
         //Riferimento al contesto EGL
         EGL10 egl = (EGL10) EGLContext.getEGL();
         EGLDisplay display = egl.eglGetDisplay(EGL10.EGL_DEFAULT_DISPLAY);
@@ -102,7 +90,7 @@ public class ModelViewerActivity extends AppCompatActivity {
 
             /*se depthv[0] contiene un valore in bit maggiore o uguale di quello desiderato
             possiamo restituire cfg ed impostare quella configurazione nella GLSurfaceView */
-            if (depthv[0] >= desiredDepthSize) {
+            if (depthv[0] >= DESIRED_DEPTH_SIZE) {
                 return cfg;
             }
         }

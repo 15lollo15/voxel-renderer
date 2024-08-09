@@ -3,10 +3,8 @@ package com.example.voxelrenderer;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.Bitmap;
-import android.graphics.Color;
 import android.opengl.GLSurfaceView;
 import android.opengl.GLUtils;
-import android.util.Log;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
@@ -72,6 +70,9 @@ public class NaiveVoxelRenderer extends BasicRenderer {
     public static final float FOV_Y = 45f;
     public static final float Z_NEAR = .1f;
     public static final float Z_FAR = 1000f;
+    public static final float MAX_ZOOM_MARGIN_FACTOR = 1.1f;
+    public static final float MIN_ZOOM_RATIO = 0.3f;
+
 
     public static final float SWIPE_SPEED = 1f;
 
@@ -82,6 +83,8 @@ public class NaiveVoxelRenderer extends BasicRenderer {
         TEXTURE_INDICES
     }
 
+    private float fovX;
+
     private PlyObject cubePlyObject;
     private VlyObject modelVlyObject;
     private float angle;
@@ -91,21 +94,18 @@ public class NaiveVoxelRenderer extends BasicRenderer {
     private int[] VBO;
     private int countFacesToElement;
     private int[] texObjId;
+    private float modelMaxSize;
 
-    private float[] eyePos;
+    private final float[] eyePos;
     private float[] lightPos;
 
-    private Transformations transformations;
+    private final Transformations transformations;
     private UniformLocations uniformLocations;
 
-    private int drawMode;
-
-    private GestureDetector gestureDetector;
-    private ScaleGestureDetector scaleDetector;
+    private final int drawMode;
 
     private float maxZoom;
     private float minZoom;
-    private float zoom;
 
     public NaiveVoxelRenderer() {
         super();
@@ -120,25 +120,29 @@ public class NaiveVoxelRenderer extends BasicRenderer {
     }
 
 
+    private float getMinimumDistanceCamera(float modelMaxSize) {
+        float cameraDistanceY = (modelMaxSize / 2) / (float) Math.tan(Math.toRadians(FOV_Y) / 2);
+        float cameraDistanceX = (modelMaxSize / 2) / (float) Math.tan(fovX / 2);
+
+        return Math.max(cameraDistanceY, cameraDistanceX);
+    }
+
+    private void computeMaxSize() {
+        modelMaxSize = Math.max(Math.max(modelVlyObject.getX(), modelVlyObject.getY()), modelVlyObject.getZ());
+        modelMaxSize *= (float) Math.sqrt(2);
+    }
+
+    @Override
     public void onSurfaceChanged(GL10 gl10, int w, int h) {
         super.onSurfaceChanged(gl10, w, h);
         float aspect = ((float) w) / ((float) (h == 0 ? 1 : h));
-        float fovX = 2 * (float) Math.atan(aspect * Math.tan(Math.toRadians(FOV_Y) / 2));
+        fovX = 2 * (float) Math.atan(aspect * Math.tan(Math.toRadians(FOV_Y) / 2));
+
+        maxZoom = getMinimumDistanceCamera(modelMaxSize) * MAX_ZOOM_MARGIN_FACTOR;
+        minZoom = maxZoom * MIN_ZOOM_RATIO;
+        eyePos[2] = maxZoom;
 
         transformations.setProjectionMatrix(FOV_Y, aspect, Z_NEAR, Z_FAR);
-
-        float maxSize = Math.max(Math.max(modelVlyObject.getX(), modelVlyObject.getY()), modelVlyObject.getZ());
-        maxSize *= (float) Math.sqrt(2);
-
-        float cameraDistanceY = (maxSize / 2) / (float) Math.tan(Math.toRadians(FOV_Y) / 2);
-        float cameraDistanceX = (maxSize / 2) / (float) Math.tan(fovX / 2);
-
-        maxZoom = Math.max(cameraDistanceY, cameraDistanceX);
-        minZoom = 1.0f; //TODO: pensarlo meglio
-        zoom = maxZoom;
-
-        eyePos[2] = zoom;
-
         transformations.setViewMatrix(eyePos);
     }
 
@@ -147,21 +151,20 @@ public class NaiveVoxelRenderer extends BasicRenderer {
     public void setContextAndSurface(Context context, GLSurfaceView surface) {
         super.setContextAndSurface(context, surface);
 
-        scaleDetector = new ScaleGestureDetector(context, new ScaleGestureDetector.SimpleOnScaleGestureListener() {
+        ScaleGestureDetector scaleDetector = new ScaleGestureDetector(context, new ScaleGestureDetector.SimpleOnScaleGestureListener() {
             @Override
             public boolean onScale(@NonNull ScaleGestureDetector detector) {
 
-                zoom /= detector.getScaleFactor();
-                zoom = Math.max(minZoom, Math.min(zoom, maxZoom));
+                eyePos[2] /= detector.getScaleFactor();
+                eyePos[2] = Math.max(minZoom, Math.min(eyePos[2], maxZoom));
 
                 return true;
             }
         });
 
-        gestureDetector = new GestureDetector(context, new GestureDetector.SimpleOnGestureListener() {
+        GestureDetector gestureDetector = new GestureDetector(context, new GestureDetector.SimpleOnGestureListener() {
             @Override
             public boolean onScroll(@Nullable MotionEvent e1, @NonNull MotionEvent e2, float distanceX, float distanceY) {
-                Log.v(TAG, "distanceX: " + distanceX);
                 if (distanceX > 0)
                     angle -= SWIPE_SPEED;
                 else
@@ -177,11 +180,6 @@ public class NaiveVoxelRenderer extends BasicRenderer {
             scaleDetector.onTouchEvent(event);
             return true;
         });
-    }
-
-    private void setAttributePointer(BuffersIndices vboIndex, int[] intArray, AttributePointer[] pointers) {
-        IntBuffer buffer = allocateIntBuffer(intArray);
-        setAttributePointer(vboIndex, buffer, pointers);
     }
 
     private void setAttributePointer(BuffersIndices vboIndex, float[] floatArray, AttributePointer[] pointers) {
@@ -215,19 +213,27 @@ public class NaiveVoxelRenderer extends BasicRenderer {
 
     private void setupTexture(Bitmap textureBitmap) {
         glBindTexture(GL_TEXTURE_2D, texObjId[0]);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-        GLUtils.texImage2D(GL_TEXTURE_2D, 0, textureBitmap, 0);
-        glGenerateMipmap(GL_TEXTURE_2D);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+            GLUtils.texImage2D(GL_TEXTURE_2D, 0, textureBitmap, 0);
+            glGenerateMipmap(GL_TEXTURE_2D);
         glBindTexture(GL_TEXTURE_2D, 0);
 
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, texObjId[0]);
-        glUseProgram(shaderHandle);
-        glUniform1i(uniformLocations.getTexLocation(), 0);
-        glUseProgram(0);
+            glBindTexture(GL_TEXTURE_2D, texObjId[0]);
+            glUseProgram(shaderHandle);
+                glUniform1i(uniformLocations.getTexLocation(), 0);
+            glUseProgram(0);
         glBindTexture(GL_TEXTURE_2D, 0);
+    }
+
+    private void setCapabilities() {
+        glEnable(GL_CULL_FACE);
+        glCullFace(GL_BACK);
+        glFrontFace(GL_CCW);
+
+        glEnable(GL_DEPTH_TEST);
+        glDepthFunc(GL_LEQUAL);
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -241,14 +247,9 @@ public class NaiveVoxelRenderer extends BasicRenderer {
         loadCube();
         loadVoxelModel();
 
-        Bitmap textureBitmap = generateTexture();
+        Bitmap textureBitmap = modelVlyObject.generateTexture();
 
-        float[] vertices = cubePlyObject.getVertices();
-        int[] indices = cubePlyObject.getIndices();
-        float[] offsets = generateOffsets();
-        float[] textureIndices = generateTextureIndices(textureBitmap.getWidth());
-
-        countFacesToElement = indices.length;
+        countFacesToElement = cubePlyObject.getIndices().length;
 
         VAO = new int[1];
         glGenVertexArrays(1, VAO, 0);
@@ -256,88 +257,30 @@ public class NaiveVoxelRenderer extends BasicRenderer {
         VBO = new int[BuffersIndices.values().length];
         glGenBuffers(BuffersIndices.values().length, VBO, 0);
 
-        setAttributePointer(BuffersIndices.VERTICES_NORMALS, vertices,
+        setAttributePointer(BuffersIndices.VERTICES_NORMALS, cubePlyObject.getVertices(),
                 new AttributePointer[]{
                         new AttributePointer(ShaderLocations.VPOS_LOCATION, 3, 6, 0, false),
                         new AttributePointer(ShaderLocations.NORMALS_LOCATION, 3, 6, 3, false),
                 });
 
-        setAttributePointer(BuffersIndices.OFFSETS, offsets,
+        setAttributePointer(BuffersIndices.OFFSETS, modelVlyObject.getOffsets(),
                 new AttributePointer[]{
                         new AttributePointer(ShaderLocations.OFFSETS_LOCATION, 3, 3, 0, true)
                 });
-        setAttributePointer(BuffersIndices.TEXTURE_INDICES, textureIndices,
+        setAttributePointer(BuffersIndices.TEXTURE_INDICES, modelVlyObject.generateTextureIndices(),
                 new AttributePointer[]{
                         new AttributePointer(ShaderLocations.TEXTURE_INDICES, 1, 1, 0, true
                 )});
 
-        setIndices(BuffersIndices.INDICES.ordinal(), indices);
+        setIndices(BuffersIndices.INDICES.ordinal(), cubePlyObject.getIndices());
 
         texObjId = new int[1];
         glGenTextures(1, texObjId, 0);
         setupTexture(textureBitmap);
+        textureBitmap.recycle();
 
 
-        glEnable(GL_CULL_FACE);
-        glCullFace(GL_BACK);
-        glFrontFace(GL_CCW);
-
-        glEnable(GL_DEPTH_TEST);
-        glDepthFunc(GL_LEQUAL);
-    }
-
-    private static double log2(double n) {
-        return Math.log(n) / Math.log(2);
-    }
-
-    private int getImageWidth(int numColors) {
-        return (int) Math.pow(2, Math.ceil(log2(numColors)));
-    }
-
-    private Bitmap generateTexture() {
-        int[] colors = modelVlyObject.getColors();
-        int numColors = modelVlyObject.getNumColors();
-        int imageWidth = getImageWidth(numColors);
-
-        int[] data = new int[imageWidth];
-        for (int i = 0; i < numColors; i++) {
-            data[i] = Color.rgb(
-                    colors[i * 3],
-                    colors[i * 3 + 1],
-                    colors[i * 3 + 2]
-            );
-        }
-
-        return Bitmap.createBitmap(data, imageWidth, 1, Bitmap.Config.ARGB_8888);
-    }
-
-    private float[] generateTextureIndices(float textWidth) {
-        float[] indices = new float[modelVlyObject.getVoxelNum()];
-
-        for (int i = 0; i < modelVlyObject.getVoxelNum(); i++) {
-            indices[i] = modelVlyObject.getVoxelsPositionColorIndex()[i][3] / textWidth + (1 / (textWidth * 2));
-        }
-
-        return indices;
-    }
-
-    private float[] generateOffsets() {
-        float[] offsets = new float[3 * modelVlyObject.getVoxelNum()];
-        int[][] positions = modelVlyObject.getVoxelsPositionColorIndex();
-
-        float marginX = (modelVlyObject.getX() - 1) * 0.5f;
-        float marginY = (modelVlyObject.getY() - 1) * 0.5f;
-        float marginZ = (modelVlyObject.getZ() - 1) * 0.5f;
-
-
-        for (int i = 0; i < modelVlyObject.getVoxelNum(); i++) {
-            int[] position = positions[i];
-            offsets[i * 3] = -(position[0] - marginX);
-            offsets[i * 3 + 1] = (position[1] - marginY);
-            offsets[i * 3 + 2] = -(position[2] - marginZ);
-        }
-
-        return offsets;
+        setCapabilities();
     }
 
     private void loadCube() {
@@ -352,9 +295,10 @@ public class NaiveVoxelRenderer extends BasicRenderer {
 
     private void loadVoxelModel() {
         try {
-            InputStream is = context.getAssets().open("models/dragon.vly");
+            InputStream is = context.getAssets().open("models/christmas.vly");
             modelVlyObject = new VlyObject(is);
             modelVlyObject.parse();
+            computeMaxSize();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -398,8 +342,6 @@ public class NaiveVoxelRenderer extends BasicRenderer {
     @Override
     public void onDrawFrame(GL10 gl10) {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-        eyePos[2] = zoom;
 
         transformations.setViewMatrix(eyePos);
         transformations.setModelMatrix(0, 0, 0, angle);
