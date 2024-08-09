@@ -1,4 +1,4 @@
-package com.example.voxelrenderer;
+package com.example.voxelrenderer.utils;
 
 import android.opengl.GLES31;
 import android.util.Log;

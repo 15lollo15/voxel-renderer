@@ -1,4 +1,4 @@
-package com.example.voxelrenderer;
+package com.example.voxelrenderer.renderers;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
@@ -54,6 +54,10 @@ import static android.opengl.GLES30.glVertexAttribDivisor;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+
+import com.example.voxelrenderer.utils.ShaderCompiler;
+import com.example.voxelrenderer.io.PlyObject;
+import com.example.voxelrenderer.io.VlyObject;
 
 import java.io.IOException;
 import java.io.InputStream;

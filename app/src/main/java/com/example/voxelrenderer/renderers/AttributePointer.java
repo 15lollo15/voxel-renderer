@@ -1,4 +1,4 @@
-package com.example.voxelrenderer;
+package com.example.voxelrenderer.renderers;
 
 
 public class AttributePointer {

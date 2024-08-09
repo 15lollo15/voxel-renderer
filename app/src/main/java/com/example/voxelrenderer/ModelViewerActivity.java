@@ -12,6 +12,8 @@ import android.util.Log;
 import android.view.Window;
 import android.view.WindowManager;
 
+import com.example.voxelrenderer.renderers.VoxelRenderer;
+
 import javax.microedition.khronos.egl.EGL10;
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.egl.EGLContext;
